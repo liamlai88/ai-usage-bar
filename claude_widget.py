@@ -46,15 +46,24 @@ def mood(pct: float) -> str:
 
 
 def fmt_countdown(target: datetime) -> str:
+    """格式化为 '1小时28分后重置 · 19:40' 或 '2天3小时后重置 · 周三 21:00'。
+    target 是 UTC 时间，会自动转换到本地时区显示绝对时间。"""
     now = datetime.now(timezone.utc)
     sec = max(0, int((target - now).total_seconds()))
+
+    local = target.astimezone()  # 转本地时区
     if sec >= 86400:
+        # 跨天，展示 "周X HH:MM"
+        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+        abs_str = f"{weekdays[local.weekday()]} {local.strftime('%H:%M')}"
         d, h = sec // 86400, (sec % 86400) // 3600
-        return f"{d}天{h}小时后重置" if h else f"{d}天后重置"
-    h, m = sec // 3600, (sec % 3600) // 60
-    if h:
-        return f"{h}小时{m}分后重置"
-    return f"{m}分钟后重置"
+        rel = f"{d}天{h}小时后重置" if h else f"{d}天后重置"
+    else:
+        abs_str = local.strftime("%H:%M")
+        h, m = sec // 3600, (sec % 3600) // 60
+        rel = f"{h}小时{m}分后重置" if h else f"{m}分钟后重置"
+
+    return f"{rel} · {abs_str}"
 
 
 def fmt_age(dt: datetime) -> str:
