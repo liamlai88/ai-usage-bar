@@ -34,6 +34,8 @@ STRINGS = {
         "reset_day_hour":  "{}天{}小时后重置",
         "weekdays":        ["周一", "周二", "周三", "周四", "周五", "周六", "周日"],
         "no_data":         "—",
+        "alert_title":     "AI Usage Bar",
+        "alert_subtitle":  "{} {} 已达 {:.0f}%",
     },
     "en": {
         "loading":         "🤖 loading…",
@@ -66,6 +68,8 @@ STRINGS = {
         "reset_day_hour":  "resets in {}d {}h",
         "weekdays":        ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
         "no_data":         "—",
+        "alert_title":     "AI Usage Bar",
+        "alert_subtitle":  "{} {} at {:.0f}%",
     },
 }
 

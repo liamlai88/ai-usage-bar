@@ -6,8 +6,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rumps
 from datetime import datetime, timezone
 from data_sources import fetch_realtime_usage, fetch_codex_usage
-from config import REFRESH_INTERVAL
+from config import REFRESH_INTERVAL, ALERT_ENABLED, ALERT_THRESHOLDS, ALERT_SOUND
 from i18n import T
+from notifier import notify
 
 
 EMPTY_BLOCK = "⬜"
@@ -131,6 +132,10 @@ class UsageApp(rumps.App):
          self._x_7d, self._x_7d_bar, self._x_7d_reset, self._x_credits) = items[9:17]
         self._last_updated = items[18]
 
+        # 阈值告警状态：{(provider, window): 上次已触发的阈值百分比}
+        self._alert_state = {}
+        self._alert_initialized = False  # 首次刷新不发通知，只初始化基线
+
         self._do_refresh()
 
     @rumps.timer(REFRESH_INTERVAL)
@@ -158,6 +163,53 @@ class UsageApp(rumps.App):
             print(f"[refresh] Codex exception: {e}", flush=True)
             codex = type("X", (), {"available": False, "error": str(e)[:80]})()
         self._update_ui(claude, codex)
+        if ALERT_ENABLED:
+            self._check_alerts(claude, codex)
+
+    def _check_alerts(self, claude, codex):
+        sources = [
+            ("c", "Claude", claude),
+            ("x", "ChatGPT", codex),
+        ]
+        any_data = False
+        for prefix, name, data in sources:
+            if not (data and getattr(data, "available", False)):
+                continue
+            any_data = True
+            for window_label, pct, reset_at in [
+                (T["5h"], data.five_hour_pct, data.five_hour_resets_at),
+                (T["7d"], data.seven_day_pct, data.seven_day_resets_at),
+            ]:
+                if pct is None:
+                    continue
+                self._maybe_fire_alert(prefix, name, window_label, pct, reset_at)
+
+        # 第一次有数据后，告警机制正式启动
+        if any_data and not self._alert_initialized:
+            self._alert_initialized = True
+
+    def _maybe_fire_alert(self, prefix, name, window_label, pct, reset_at):
+        key = (prefix, window_label)
+        last_bucket = self._alert_state.get(key, 0)
+
+        # 找出当前 pct 跨过的最高阈值
+        current_bucket = 0
+        for t in sorted(ALERT_THRESHOLDS):
+            if pct >= t:
+                current_bucket = t
+
+        # 首次刷新只记录基线，不发通知
+        if not self._alert_initialized:
+            self._alert_state[key] = current_bucket
+            return
+
+        if current_bucket > last_bucket:
+            subtitle = T["alert_subtitle"].format(name, window_label, pct)
+            body = fmt_countdown(reset_at) if reset_at else ""
+            notify(T["alert_title"], body, subtitle=subtitle, sound=ALERT_SOUND)
+            self._alert_state[key] = current_bucket
+        elif current_bucket < last_bucket:
+            self._alert_state[key] = current_bucket
 
     # ---------- 渲染 ----------
     @staticmethod

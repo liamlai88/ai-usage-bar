@@ -44,6 +44,7 @@ Dropdown:    [Claude logo] Claude Pro (live)
 - **Light** — ~120 MB RAM, ~1% CPU
 - **Auto-start** — one-shot installer wires up a LaunchAgent
 - **Color-coded** progress bars (green → yellow → orange → red)
+- **Threshold alerts** — native macOS notification when usage crosses 80% / 95%
 
 ---
 
@@ -95,10 +96,12 @@ python claude_widget.py
 Edit `config.py`:
 
 ```python
-USD_TO_CNY = 7.20          # exchange rate (used only for legacy local cost estimates)
+REFRESH_INTERVAL    = 30           # API poll interval (seconds)
+LANG                = "auto"       # "zh" | "en" | "auto"
+ALERT_ENABLED       = True
+ALERT_THRESHOLDS    = [80, 95]     # fire notification when crossing these
+ALERT_SOUND         = False
 ```
-
-(More config knobs to come — refresh interval, status thresholds, etc.)
 
 ---
 
