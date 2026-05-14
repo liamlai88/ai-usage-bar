@@ -146,15 +146,30 @@ class UsageApp(rumps.App):
         codex = None
         try:
             claude = fetch_realtime_usage()
+            if not claude.available:
+                print(f"[refresh] Claude unavailable: {claude.error}", flush=True)
         except Exception as e:
+            print(f"[refresh] Claude exception: {e}", flush=True)
             claude = type("X", (), {"available": False, "error": str(e)[:80]})()
         try:
             codex = fetch_codex_usage()
+            if not codex.available:
+                print(f"[refresh] Codex unavailable: {codex.error}", flush=True)
         except Exception as e:
+            print(f"[refresh] Codex exception: {e}", flush=True)
             codex = type("X", (), {"available": False, "error": str(e)[:80]})()
         self._update_ui(claude, codex)
 
     # ---------- 渲染 ----------
+    @staticmethod
+    def _fix_hint(prefix: str) -> str:
+        """根据 provider 给出可操作的修复提示。"""
+        if prefix == "c":
+            return "打开 Claude 桌面 App 登录"
+        if prefix == "x":
+            return "终端运行 codex login"
+        return "请检查登录状态"
+
     def _render_section(self, prefix, header_item, bar5_item, reset5_item, bar7_item, reset7_item,
                         h5_item, d7_item, data, badge: str, label: str):
         ok = data and getattr(data, "available", False)
@@ -163,7 +178,7 @@ class UsageApp(rumps.App):
             header_item.title = f"{prefix}{label}（实时）"
         else:
             msg = getattr(data, "error", "—") if data else "—"
-            header_item.title = f"{prefix}{label}：{msg}"
+            header_item.title = f"{prefix}{label}  ⚠️  {msg}"
 
         p5 = getattr(data, "five_hour_pct", None) if ok else None
         if p5 is not None:
@@ -171,10 +186,16 @@ class UsageApp(rumps.App):
             bar5_item.title  = f"     {progress_bar(p5)}  剩 {max(0,100-p5):.0f}%"
             r5 = getattr(data, "five_hour_resets_at", None)
             reset5_item.title = f"     🕒 {fmt_countdown(r5)}" if r5 else "     🕒 —"
+        elif not ok:
+            # 取数失败给出引导
+            hint = self._fix_hint(prefix)
+            h5_item.title = f"  💡 修复：{hint}"
+            bar5_item.title = "     "
+            reset5_item.title = "     "
         else:
             h5_item.title = "  ⏱ 5 小时：—"
-            bar5_item.title = f"     {progress_bar(0)}"
-            reset5_item.title = "     🕒 —"
+            bar5_item.title = f"     "
+            reset5_item.title = "     "
 
         p7 = getattr(data, "seven_day_pct", None) if ok else None
         if p7 is not None:
@@ -182,23 +203,29 @@ class UsageApp(rumps.App):
             bar7_item.title = f"     {progress_bar(p7)}  剩 {max(0,100-p7):.0f}%"
             r7 = getattr(data, "seven_day_resets_at", None)
             reset7_item.title = f"     🕒 {fmt_countdown(r7)}" if r7 else "     🕒 —"
+        elif not ok:
+            d7_item.title = ""
+            bar7_item.title = ""
+            reset7_item.title = ""
         else:
             d7_item.title = "  📅 7 天：—"
-            bar7_item.title = f"     {progress_bar(0)}"
-            reset7_item.title = "     🕒 —"
+            bar7_item.title = "     "
+            reset7_item.title = "     "
 
     def _update_ui(self, claude, codex):
         # —— 菜单栏标题：两家的 5h 都显示 ——
-        c5 = claude.five_hour_pct if (claude and claude.available) else None
-        x5 = codex.five_hour_pct if (codex and codex.available) else None
+        c_ok = bool(claude and claude.available)
+        x_ok = bool(codex and codex.available)
+        c5 = claude.five_hour_pct if c_ok else None
+        x5 = codex.five_hour_pct if x_ok else None
 
-        # 菜单栏：🟡 Claude 品牌色  ·  ⚫ ChatGPT 品牌色
-        parts = []
-        if c5 is not None:
-            parts.append(f"🟡 {c5:.0f}%")
-        if x5 is not None:
-            parts.append(f"⚫ {x5:.0f}%")
-        self.title = "  ".join(parts) if parts else "取数失败"
+        # 菜单栏图标随状态变：两边都正常 = 🤖，任一异常 = ⚠️，全挂 = ❌
+        if c_ok and x_ok:
+            self.title = "🤖"
+        elif c_ok or x_ok:
+            self.title = "⚠️"
+        else:
+            self.title = "❌"
 
         # —— Claude 区 ——
         self._render_section(
@@ -240,4 +267,11 @@ class UsageApp(rumps.App):
 
 
 if __name__ == "__main__":
+    # 隐藏 Dock 图标 —— 让它成为纯菜单栏 agent
+    try:
+        from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+        NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+    except Exception:
+        pass
+
     UsageApp().run()

@@ -2,6 +2,8 @@
 
 > A tiny macOS menu-bar widget that shows **real-time Claude Pro & ChatGPT Plus rate-limit usage**, pulled straight from the official APIs — no API key needed.
 
+English · [简体中文](README.zh-CN.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![macOS](https://img.shields.io/badge/macOS-12%2B-blue)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-green)
