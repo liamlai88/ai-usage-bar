@@ -10,10 +10,12 @@ from config import (
     REFRESH_INTERVAL,
     ALERT_ENABLED, ALERT_THRESHOLDS, ALERT_SOUND,
     SERVER_ENABLED, SERVER_HOST, SERVER_PORT,
+    SERIAL_ENABLED,
 )
 from i18n import T
 from notifier import notify
 import server as usage_server
+import serial_bridge
 
 
 EMPTY_BLOCK = "⬜"
@@ -329,11 +331,18 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    # 启动局域网 HTTP server（给 M5Stick 等外设用）
+    # 启动局域网 HTTP server（给 M5Stick 等外设用 / WiFi 方式）
     if SERVER_ENABLED:
         try:
             usage_server.start(SERVER_HOST, SERVER_PORT)
         except Exception as e:
             print(f"[server] failed to start: {e}", flush=True)
+
+    # 启动 USB 串口推送（M5Stick over USB 方式，免 WiFi）
+    if SERIAL_ENABLED:
+        try:
+            serial_bridge.start()
+        except Exception as e:
+            print(f"[serial] failed to start: {e}", flush=True)
 
     UsageApp().run()

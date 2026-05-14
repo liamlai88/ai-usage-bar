@@ -19,3 +19,12 @@ SERVER_ENABLED = True
 SERVER_HOST    = "0.0.0.0"     # bind 0.0.0.0 so LAN devices can reach
 SERVER_PORT    = 8089
 
+# ---------------- USB Serial bridge (for M5Stick over USB) ----------------
+# Pushes JSON snapshots to a USB-serial device so the hardware widget can
+# work without WiFi. Auto-detects /dev/cu.usbserial-* / /dev/cu.wchusbserial-*.
+SERIAL_ENABLED = True
+SERIAL_PORT    = None          # None = auto-detect; or set e.g. "/dev/cu.usbserial-XXX"
+SERIAL_BAUD    = 115200
+SERIAL_PUSH_EVERY = 5          # seconds; M5Stick reads continuously
+
+
