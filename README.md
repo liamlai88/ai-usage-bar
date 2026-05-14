@@ -9,7 +9,10 @@ English · [简体中文](README.zh-CN.md)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-green)
 
 <p align="center">
-  <img src="docs/screenshot.png" width="520" alt="screenshot placeholder — add yours here"/>
+  <img src="docs/demo.gif" width="560" alt="Animated demo"/>
+</p>
+<p align="center">
+  <img src="docs/screenshot-en.png" width="560" alt="Menu screenshot"/>
 </p>
 
 The Claude / ChatGPT desktop apps already display 5-hour and weekly usage somewhere deep inside settings. This widget pulls the **same numbers** from the same APIs they use and shows them in your menu bar all the time.

@@ -7,6 +7,7 @@ import rumps
 from datetime import datetime, timezone
 from data_sources import fetch_realtime_usage, fetch_codex_usage
 from config import REFRESH_INTERVAL
+from i18n import T
 
 
 EMPTY_BLOCK = "⬜"
@@ -46,34 +47,32 @@ def mood(pct: float) -> str:
 
 
 def fmt_countdown(target: datetime) -> str:
-    """格式化为 '1小时28分后重置 · 19:40' 或 '2天3小时后重置 · 周三 21:00'。
-    target 是 UTC 时间，会自动转换到本地时区显示绝对时间。"""
+    """格式化倒计时 + 本地绝对时间。"""
     now = datetime.now(timezone.utc)
     sec = max(0, int((target - now).total_seconds()))
 
-    local = target.astimezone()  # 转本地时区
+    local = target.astimezone()
     if sec >= 86400:
-        # 跨天，展示 "周X HH:MM"
-        weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-        abs_str = f"{weekdays[local.weekday()]} {local.strftime('%H:%M')}"
+        abs_str = f"{T['weekdays'][local.weekday()]} {local.strftime('%H:%M')}"
         d, h = sec // 86400, (sec % 86400) // 3600
-        rel = f"{d}天{h}小时后重置" if h else f"{d}天后重置"
+        rel = T["reset_day_hour"].format(d, h) if h else T["reset_day"].format(d)
     else:
         abs_str = local.strftime("%H:%M")
         h, m = sec // 3600, (sec % 3600) // 60
-        rel = f"{h}小时{m}分后重置" if h else f"{m}分钟后重置"
+        rel = T["reset_hour_min"].format(h, m) if h else T["reset_min"].format(m)
 
     return f"{rel} · {abs_str}"
 
 
 def fmt_age(dt: datetime) -> str:
     if not dt:
-        return "—"
+        return T["no_data"]
     sec = int((datetime.now(timezone.utc) - dt).total_seconds())
-    if sec < 60:    return f"{sec}秒前"
-    if sec < 3600:  return f"{sec // 60}分钟前"
-    if sec < 86400: return f"{sec // 3600}小时前"
-    return f"{sec // 86400}天前"
+    if sec < 5:     return T["now"]
+    if sec < 60:    return T["sec_ago"].format(sec)
+    if sec < 3600:  return T["min_ago"].format(sec // 60)
+    if sec < 86400: return T["hour_ago"].format(sec // 3600)
+    return T["day_ago"].format(sec // 86400)
 
 
 _NOOP = lambda _: None
@@ -94,7 +93,7 @@ class UsageApp(rumps.App):
     def __init__(self):
         super().__init__(
             name="AIUsage",
-            title="🐱 加载中…",
+            title=T["loading"],
             menu=[
                 # Claude 区 (header 带 Claude logo)
                 _mi("c_header", icon=CLAUDE_LOGO),
@@ -117,9 +116,9 @@ class UsageApp(rumps.App):
                 _mi("x_credits"),
                 None,
                 _mi("last_updated"),
-                rumps.MenuItem("🔄 立即刷新", callback=self.refresh),
+                rumps.MenuItem(T["refresh"], callback=self.refresh),
                 None,
-                rumps.MenuItem("👋 退出", callback=rumps.quit_application),
+                rumps.MenuItem(T["quit"], callback=rumps.quit_application),
             ],
             quit_button=None,
         )
@@ -165,50 +164,49 @@ class UsageApp(rumps.App):
     def _fix_hint(prefix: str) -> str:
         """根据 provider 给出可操作的修复提示。"""
         if prefix == "c":
-            return "打开 Claude 桌面 App 登录"
+            return T["fix_claude"]
         if prefix == "x":
-            return "终端运行 codex login"
-        return "请检查登录状态"
+            return T["fix_codex"]
+        return T["fix_generic"]
 
     def _render_section(self, prefix, header_item, bar5_item, reset5_item, bar7_item, reset7_item,
                         h5_item, d7_item, data, badge: str, label: str):
         ok = data and getattr(data, "available", False)
-        prefix = (badge + "  ") if badge else ""
+        prefix_str = (badge + "  ") if badge else ""
         if ok:
-            header_item.title = f"{prefix}{label}（实时）"
+            header_item.title = f"{prefix_str}{label} ({T['live']})"
         else:
-            msg = getattr(data, "error", "—") if data else "—"
-            header_item.title = f"{prefix}{label}  ⚠️  {msg}"
+            msg = getattr(data, "error", T["no_data"]) if data else T["no_data"]
+            header_item.title = f"{prefix_str}{label}  ⚠️  {msg}"
 
         p5 = getattr(data, "five_hour_pct", None) if ok else None
         if p5 is not None:
-            h5_item.title    = f"  ⏱ 5 小时：{p5:.0f}%"
-            bar5_item.title  = f"     {progress_bar(p5)}  剩 {max(0,100-p5):.0f}%"
+            h5_item.title    = f"  ⏱ {T['5h']}: {p5:.0f}%"
+            bar5_item.title  = f"     {progress_bar(p5)}  " + T["left"].format(max(0, 100 - p5))
             r5 = getattr(data, "five_hour_resets_at", None)
-            reset5_item.title = f"     🕒 {fmt_countdown(r5)}" if r5 else "     🕒 —"
+            reset5_item.title = f"     🕒 {fmt_countdown(r5)}" if r5 else f"     🕒 {T['no_data']}"
         elif not ok:
-            # 取数失败给出引导
             hint = self._fix_hint(prefix)
-            h5_item.title = f"  💡 修复：{hint}"
+            h5_item.title = "  " + T["fix_hint"].format(hint)
             bar5_item.title = "     "
             reset5_item.title = "     "
         else:
-            h5_item.title = "  ⏱ 5 小时：—"
-            bar5_item.title = f"     "
+            h5_item.title = f"  ⏱ {T['5h']}: {T['no_data']}"
+            bar5_item.title = "     "
             reset5_item.title = "     "
 
         p7 = getattr(data, "seven_day_pct", None) if ok else None
         if p7 is not None:
-            d7_item.title   = f"  📅 7 天：{p7:.0f}%"
-            bar7_item.title = f"     {progress_bar(p7)}  剩 {max(0,100-p7):.0f}%"
+            d7_item.title   = f"  📅 {T['7d']}: {p7:.0f}%"
+            bar7_item.title = f"     {progress_bar(p7)}  " + T["left"].format(max(0, 100 - p7))
             r7 = getattr(data, "seven_day_resets_at", None)
-            reset7_item.title = f"     🕒 {fmt_countdown(r7)}" if r7 else "     🕒 —"
+            reset7_item.title = f"     🕒 {fmt_countdown(r7)}" if r7 else f"     🕒 {T['no_data']}"
         elif not ok:
             d7_item.title = ""
             bar7_item.title = ""
             reset7_item.title = ""
         else:
-            d7_item.title = "  📅 7 天：—"
+            d7_item.title = f"  📅 {T['7d']}: {T['no_data']}"
             bar7_item.title = "     "
             reset7_item.title = "     "
 
@@ -232,38 +230,36 @@ class UsageApp(rumps.App):
             "c", self._c_header,
             self._c_5h_bar, self._c_5h_reset, self._c_7d_bar, self._c_7d_reset,
             self._c_5h, self._c_7d,
-            claude, "", "Claude Pro",
+            claude, "", T["claude_plan"],
         )
-        # Claude 额外信息：Extra Usage
         if claude and claude.available and getattr(claude, "extra_credits_limit", None):
             used = claude.extra_credits_used or 0
             limit = claude.extra_credits_limit
             cur = claude.extra_currency or "USD"
-            self._c_extra.title = f"  💎 Extra：${used:.2f} / ${limit:.0f} {cur}"
+            self._c_extra.title = "  " + T["extra"].format(used, limit, cur)
         else:
-            self._c_extra.title = "  💎 Extra：—"
+            self._c_extra.title = "  " + T["extra_empty"]
 
         # —— Codex 区 ——
         codex_label = "Codex"
         if codex and codex.available and codex.plan_type:
-            codex_label = f"Codex {codex.plan_type.title()}"
+            codex_label = T["codex_plan"].format(codex.plan_type.title())
         self._render_section(
             "x", self._x_header,
             self._x_5h_bar, self._x_5h_reset, self._x_7d_bar, self._x_7d_reset,
             self._x_5h, self._x_7d,
             codex, "", codex_label,
         )
-        # Codex credits
         if codex and codex.available:
             bal = codex.credits_balance or "0"
-            self._x_credits.title = f"  💎 Credits 余额：{bal}"
+            self._x_credits.title = "  " + T["credits"].format(bal)
         else:
-            self._x_credits.title = "  💎 Credits：—"
+            self._x_credits.title = "  " + T["credits_empty"]
 
         # —— 更新时间 ——
-        c_age = fmt_age(claude.fetched_at) if (claude and getattr(claude, "fetched_at", None)) else "—"
-        x_age = fmt_age(codex.fetched_at) if (codex and getattr(codex, "fetched_at", None)) else "—"
-        self._last_updated.title = f"🕘 Claude: {c_age}  ·  Codex: {x_age}"
+        c_age = fmt_age(claude.fetched_at) if (claude and getattr(claude, "fetched_at", None)) else T["no_data"]
+        x_age = fmt_age(codex.fetched_at) if (codex and getattr(codex, "fetched_at", None)) else T["no_data"]
+        self._last_updated.title = T["updated"].format(c_age, x_age)
 
 
 if __name__ == "__main__":

@@ -1,37 +1,30 @@
-"""用 macOS 原生 AppKit 渲染高质量 README mockup。
+"""Render menu mockups for README in zh / en.
 
-依赖 PyObjC（已经在 rumps 的依赖里）。运行：
-    .venv/bin/python docs/render_mockup.py
-
-输出：docs/screenshot.png
+Usage:
+    .venv/bin/python docs/render_mockup.py [--lang zh|en] [--out path] [--c5 65 --c7 8 --x5 8 --x7 63]
 """
+import argparse
 from pathlib import Path
 
 from AppKit import (
     NSAttributedString, NSBezierPath, NSBitmapImageRep, NSColor, NSFont,
     NSFontAttributeName, NSForegroundColorAttributeName, NSGraphicsContext,
-    NSImage, NSPNGFileType, NSShadow, NSShadowAttributeName,
+    NSImage, NSPNGFileType, NSShadow,
 )
 from Foundation import NSMakeRect, NSMakePoint, NSMakeSize
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
-OUT = ROOT / "docs" / "screenshot.png"
 
-# 整体画布尺寸
 W, H = 800, 640
-SCALE = 2  # 2x 高清
+SCALE = 2
 
-
-# ---------- 工具 ----------
 
 def color(r, g, b, a=1.0):
     return NSColor.colorWithCalibratedRed_green_blue_alpha_(r/255, g/255, b/255, a)
 
 
-def draw_text(s, x, y, font_size=13, weight="Regular", c=(20, 20, 22), align_right=None):
-    """在 (x, y) 处画文本。y 是文本 baseline 坐标（AppKit 是从下往上）。
-    align_right=True 时把 x 当成右边界。"""
+def draw_text(s, x, y, font_size=13, weight="Regular", c=(20, 20, 22), align_right=False):
     if weight == "Bold":
         font = NSFont.boldSystemFontOfSize_(font_size)
     elif weight == "Semibold":
@@ -39,13 +32,10 @@ def draw_text(s, x, y, font_size=13, weight="Regular", c=(20, 20, 22), align_rig
     else:
         font = NSFont.systemFontOfSize_(font_size)
 
-    attrs = {NSFontAttributeName: font,
-             NSForegroundColorAttributeName: color(*c)}
+    attrs = {NSFontAttributeName: font, NSForegroundColorAttributeName: color(*c)}
     attr = NSAttributedString.alloc().initWithString_attributes_(s, attrs)
-
     if align_right:
-        size = attr.size()
-        x = x - size.width
+        x = x - attr.size().width
     attr.drawAtPoint_(NSMakePoint(x, y))
 
 
@@ -62,11 +52,10 @@ def rounded_rect(x, y, w, h, radius=8, fill=None, stroke=None, width=1.0):
 
 
 def progress_bar(x, y, pct, segments=14, seg_w=18, seg_h=10, gap=3):
-    """彩色分段进度条"""
-    if pct < 50:    fc = (52, 199, 89)     # 绿
-    elif pct < 75:  fc = (255, 204, 0)     # 黄
-    elif pct < 90:  fc = (255, 149, 0)     # 橙
-    else:           fc = (255, 69, 58)     # 红
+    if pct < 50:    fc = (52, 199, 89)
+    elif pct < 75:  fc = (255, 204, 0)
+    elif pct < 90:  fc = (255, 149, 0)
+    else:           fc = (255, 69, 58)
     ec = (220, 220, 224)
     filled = round(pct / 100 * segments)
     for i in range(segments):
@@ -77,15 +66,50 @@ def progress_bar(x, y, pct, segments=14, seg_w=18, seg_h=10, gap=3):
 
 def draw_image(path: Path, x: float, y: float, size: float):
     img = NSImage.alloc().initWithContentsOfFile_(str(path))
-    if img is None:
-        return
-    img.drawInRect_(NSMakeRect(x, y, size, size))
+    if img is not None:
+        img.drawInRect_(NSMakeRect(x, y, size, size))
 
 
-# ---------- 主渲染 ----------
+# ---------- 文案模板 ----------
 
-def main():
-    # 创建画布（2x 分辨率）
+COPY = {
+    "en": {
+        "claude_header":   "Claude Pro (live)",
+        "codex_header":    "Codex Plus (live)",
+        "5h":              "⏱  5h window",
+        "7d":              "📅  7d window",
+        "left":            "{}% left",
+        "reset_5h_c":      "🕒 resets in 1h 28m · 18:43",
+        "reset_7d_c":      "🕒 resets in 6d 4h · Wed 22:15",
+        "reset_5h_x":      "🕒 resets in 4h 6m · 21:21",
+        "reset_7d_x":      "🕒 resets in 1d 22h · Sat 16:15",
+        "extra":           "💎  Extra: $0.00 / $2000 USD",
+        "credits":         "💎  Credits: 0",
+        "updated":         "🕘  Claude: 5s ago  ·  Codex: 5s ago",
+        "refresh":         "🔄  Refresh now",
+        "quit":            "👋  Quit",
+    },
+    "zh": {
+        "claude_header":   "Claude Pro（实时）",
+        "codex_header":    "Codex Plus（实时）",
+        "5h":              "⏱  5 小时",
+        "7d":              "📅  7 天",
+        "left":            "剩 {}%",
+        "reset_5h_c":      "🕒 1 小时 28 分后重置 · 18:43",
+        "reset_7d_c":      "🕒 6 天 4 小时后重置 · 周三 22:15",
+        "reset_5h_x":      "🕒 4 小时 6 分后重置 · 21:21",
+        "reset_7d_x":      "🕒 1 天 22 小时后重置 · 周六 16:15",
+        "extra":           "💎  Extra：$0.00 / $2000 USD",
+        "credits":         "💎  Credits 余额：0",
+        "updated":         "🕘  Claude: 5 秒前  ·  Codex: 5 秒前",
+        "refresh":         "🔄  立即刷新",
+        "quit":            "👋  退出",
+    },
+}
+
+
+def render(lang: str, c5: float, c7: float, x5: float, x7: float, out: Path):
+    cp = COPY[lang]
     rep = NSBitmapImageRep.alloc().initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel_(
         None, W * SCALE, H * SCALE, 8, 4, True, False, "NSCalibratedRGBColorSpace", 0, 0
     )
@@ -95,35 +119,32 @@ def main():
     NSGraphicsContext.setCurrentContext_(ctx)
     ctx.saveGraphicsState()
 
-    # —— 背景：浅色桌面 ——
+    # background
     color(232, 234, 238).setFill()
     NSBezierPath.fillRect_(NSMakeRect(0, 0, W, H))
 
-    # —— 顶部菜单栏 ——
+    # menu bar
     bar_h = 26
     rounded_rect(0, H - bar_h, W, bar_h, radius=0, fill=(255, 255, 255, 0.96))
-    # 底部分隔线
     color(0, 0, 0, 0.08).setFill()
     NSBezierPath.fillRect_(NSMakeRect(0, H - bar_h - 1, W, 1))
 
-    # 菜单栏右侧图标 + 时间
     right = W - 16
     draw_text("21:32", right, H - 18, font_size=13, align_right=True)
     right -= 60
     draw_text("🤖", right, H - 19, font_size=14, align_right=True)
-    icon_x_center = right - 7  # 给下拉菜单对齐参考
+    icon_x_center = right - 7
     right -= 28
     for emoji in ["🔋", "📶", "🔍"]:
         draw_text(emoji, right, H - 19, font_size=14, align_right=True)
         right -= 28
 
-    # —— 下拉菜单 ——
+    # dropdown
     mw = 470
     mh = 460
     mx = icon_x_center - mw + 20
     my = H - bar_h - mh - 8
 
-    # 阴影
     shadow = NSShadow.alloc().init()
     shadow.setShadowOffset_(NSMakeSize(0, -2))
     shadow.setShadowBlurRadius_(12)
@@ -133,22 +154,15 @@ def main():
     rounded_rect(mx, my, mw, mh, radius=10, fill=(252, 252, 254, 1.0),
                  stroke=(0, 0, 0, 0.12), width=0.5)
 
-    # 清掉阴影
     NSShadow.alloc().init().set()
 
-    # 渲染菜单项（从顶部往下）
-    cy = my + mh - 24  # 当前 y baseline
+    cy = my + mh - 24
 
     def item(text, indent=22, font_size=13, weight="Regular", c=(30, 30, 32), icon=None, advance=24):
         nonlocal cy
         if icon is not None:
             draw_image(icon, mx + 14, cy - 4, 18)
         draw_text(text, mx + indent, cy, font_size=font_size, weight=weight, c=c)
-        cy -= advance
-
-    def small(text, indent=46, c=(110, 110, 120), advance=22):
-        nonlocal cy
-        draw_text(text, mx + indent, cy, font_size=11, c=c)
         cy -= advance
 
     def separator():
@@ -160,48 +174,52 @@ def main():
 
     def usage_row(label, pct, reset_text):
         nonlocal cy
-        # 第 1 行：label + bar + 剩余%
-        draw_text(label, mx + 42, cy, font_size=13)
+        draw_text(f"{label}    {pct:.0f}%", mx + 42, cy, font_size=13)
         progress_bar(mx + 188, cy + 1, pct)
-        draw_text(f"剩 {100 - pct:.0f}%", mx + mw - 14, cy, font_size=11,
+        draw_text(cp["left"].format(int(100 - pct)), mx + mw - 14, cy, font_size=11,
                   c=(110, 110, 120), align_right=True)
         cy -= 22
-        # 第 2 行：重置倒计时
         draw_text(reset_text, mx + 60, cy, font_size=11, c=(110, 110, 120))
         cy -= 22
 
-    # —— Claude 区 ——
     cy -= 4
-    item("Claude Pro（实时）", indent=40, weight="Semibold", icon=ASSETS / "claude_logo.png")
+    item(cp["claude_header"], indent=40, weight="Semibold", icon=ASSETS / "claude_logo.png")
     cy -= 2
-    usage_row("⏱  5 小时   65%", 65, "🕒 1 小时 28 分后重置 · 18:43")
-    usage_row("📅  7 天        8%",  8, "🕒 6 天 4 小时后重置 · 周三 22:15")
-    item("💎  Extra：$0.00 / $2000 USD", indent=40, font_size=12, c=(80, 80, 90))
+    usage_row(cp["5h"], c5, cp["reset_5h_c"])
+    usage_row(cp["7d"], c7, cp["reset_7d_c"])
+    item(cp["extra"], indent=40, font_size=12, c=(80, 80, 90))
 
     separator()
 
-    # —— Codex 区 ——
-    item("Codex Plus（实时）", indent=40, weight="Semibold", icon=ASSETS / "openai_logo.png")
+    item(cp["codex_header"], indent=40, weight="Semibold", icon=ASSETS / "openai_logo.png")
     cy -= 2
-    usage_row("⏱  5 小时    8%",  8, "🕒 4 小时 6 分后重置 · 21:21")
-    usage_row("📅  7 天       63%", 63, "🕒 1 天 22 小时后重置 · 周六 16:15")
-    item("💎  Credits 余额：0", indent=40, font_size=12, c=(80, 80, 90))
+    usage_row(cp["5h"], x5, cp["reset_5h_x"])
+    usage_row(cp["7d"], x7, cp["reset_7d_x"])
+    item(cp["credits"], indent=40, font_size=12, c=(80, 80, 90))
 
     separator()
-    item("🕘  Claude: 5 秒前  ·  Codex: 5 秒前", indent=14, font_size=12, c=(110, 110, 120))
-    item("🔄  立即刷新", indent=14)
+    item(cp["updated"], indent=14, font_size=12, c=(110, 110, 120))
+    item(cp["refresh"], indent=14)
     separator()
-    item("👋  退出", indent=14)
+    item(cp["quit"], indent=14)
 
     ctx.restoreGraphicsState()
     ctx.flushGraphics()
 
-    # 保存 PNG
     png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    png_data.writeToFile_atomically_(str(OUT), True)
-    print(f"✅ Saved: {OUT}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    png_data.writeToFile_atomically_(str(out), True)
+    print(f"✅ Saved: {out}")
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--lang", default="en", choices=["en", "zh"])
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--c5", type=float, default=65)
+    ap.add_argument("--c7", type=float, default=8)
+    ap.add_argument("--x5", type=float, default=8)
+    ap.add_argument("--x7", type=float, default=63)
+    args = ap.parse_args()
+    out = Path(args.out) if args.out else (ROOT / "docs" / f"screenshot-{args.lang}.png")
+    render(args.lang, args.c5, args.c7, args.x5, args.x7, out)
