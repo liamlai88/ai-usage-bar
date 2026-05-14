@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for the LaunchAgent.
+  Replace <PROJECT_DIR> with the absolute path of this repo, e.g.
+    /Users/yourname/code/ai-usage-bar
+
+  Install:
+    sed "s|<PROJECT_DIR>|$(pwd)|g" launchagent.plist.template \
+      > ~/Library/LaunchAgents/com.aiusagebar.plist
+    launchctl load -w ~/Library/LaunchAgents/com.aiusagebar.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.aiusagebar</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string><PROJECT_DIR>/.venv/bin/python</string>
+        <string><PROJECT_DIR>/claude_widget.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string><PROJECT_DIR></string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+
+    <key>Nice</key>
+    <integer>5</integer>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/aiusagebar.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/aiusagebar.err.log</string>
+</dict>
+</plist>
