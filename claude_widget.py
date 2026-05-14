@@ -6,9 +6,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rumps
 from datetime import datetime, timezone
 from data_sources import fetch_realtime_usage, fetch_codex_usage
-from config import REFRESH_INTERVAL, ALERT_ENABLED, ALERT_THRESHOLDS, ALERT_SOUND
+from config import (
+    REFRESH_INTERVAL,
+    ALERT_ENABLED, ALERT_THRESHOLDS, ALERT_SOUND,
+    SERVER_ENABLED, SERVER_HOST, SERVER_PORT,
+)
 from i18n import T
 from notifier import notify
+import server as usage_server
 
 
 EMPTY_BLOCK = "⬜"
@@ -165,6 +170,8 @@ class UsageApp(rumps.App):
         self._update_ui(claude, codex)
         if ALERT_ENABLED:
             self._check_alerts(claude, codex)
+        if SERVER_ENABLED:
+            usage_server.update_snapshot(claude, codex)
 
     def _check_alerts(self, claude, codex):
         sources = [
@@ -321,5 +328,12 @@ if __name__ == "__main__":
         NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
     except Exception:
         pass
+
+    # 启动局域网 HTTP server（给 M5Stick 等外设用）
+    if SERVER_ENABLED:
+        try:
+            usage_server.start(SERVER_HOST, SERVER_PORT)
+        except Exception as e:
+            print(f"[server] failed to start: {e}", flush=True)
 
     UsageApp().run()

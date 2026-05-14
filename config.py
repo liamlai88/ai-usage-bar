@@ -11,3 +11,11 @@ LANG = "auto"
 ALERT_ENABLED = True
 ALERT_THRESHOLDS = [80, 95]    # percentages
 ALERT_SOUND = False            # play default notification sound
+
+# ---------------- Local HTTP server (for M5Stick / external devices) ----------------
+# Exposes GET /usage returning the latest fetched data as JSON.
+# Disabled by default; enable when you want a hardware widget to poll your Mac.
+SERVER_ENABLED = True
+SERVER_HOST    = "0.0.0.0"     # bind 0.0.0.0 so LAN devices can reach
+SERVER_PORT    = 8089
+
