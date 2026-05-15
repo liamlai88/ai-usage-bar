@@ -1,34 +1,43 @@
-"""Send native macOS notifications via osascript.
+"""Send native macOS notifications.
 
-Why osascript instead of rumps.notification?
-- rumps.notification requires a bundled app (py2app) with a unique bundle ID;
-  it silently fails when running as a plain Python script.
-- osascript hits AppleScript's `display notification` which always works,
-  needs no bundle, and renders in Notification Center the same way.
+In a bundled .app (py2app), uses rumps.notification so the notification
+appears under the app's own name in Notification Center.
+When running as a plain script, falls back to osascript which works without
+a bundle ID but shows "Script Editor" as the sender.
 """
-import shlex
+import sys
 import subprocess
 
 
 def _escape(s: str) -> str:
-    """Escape backslashes and double quotes for AppleScript string literals."""
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def notify(title: str, message: str, subtitle: str = "", sound: bool = False) -> bool:
-    """Fire a macOS notification. Returns True on success, False otherwise."""
+def _notify_osascript(title: str, message: str, subtitle: str, sound: bool) -> bool:
     parts = [f'display notification "{_escape(message)}" with title "{_escape(title)}"']
     if subtitle:
         parts.append(f'subtitle "{_escape(subtitle)}"')
     if sound:
         parts.append('sound name "Glass"')
-    script = " ".join(parts)
     try:
-        subprocess.run(["osascript", "-e", script], timeout=3, check=False,
-                       capture_output=True)
+        subprocess.run(["osascript", "-e", " ".join(parts)], timeout=3,
+                       check=False, capture_output=True)
         return True
     except Exception:
         return False
+
+
+def notify(title: str, message: str, subtitle: str = "", sound: bool = False) -> bool:
+    """Fire a macOS notification. Returns True on success, False otherwise."""
+    if getattr(sys, "frozen", False):
+        try:
+            import rumps
+            rumps.notification(title=title, subtitle=subtitle, message=message,
+                               sound=sound)
+            return True
+        except Exception:
+            pass
+    return _notify_osascript(title, message, subtitle, sound)
 
 
 if __name__ == "__main__":

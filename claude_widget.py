@@ -3,6 +3,18 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# In a frozen .app, Python.framework doesn't find system CA certs automatically.
+# Construct the path to certifi's cacert.pem from the bundle structure.
+if getattr(sys, "frozen", False):
+    import glob as _glob
+    _resources = os.path.normpath(
+        os.path.join(os.path.dirname(sys.executable), "..", "Resources")
+    )
+    _matches = _glob.glob(os.path.join(_resources, "lib", "python*", "certifi", "cacert.pem"))
+    if _matches and os.path.exists(_matches[0]):
+        os.environ["SSL_CERT_FILE"] = _matches[0]
+        os.environ["REQUESTS_CA_BUNDLE"] = _matches[0]
+
 import rumps
 from datetime import datetime, timezone
 from data_sources import fetch_realtime_usage, fetch_codex_usage
@@ -85,9 +97,14 @@ def fmt_age(dt: datetime) -> str:
 
 _NOOP = lambda _: None
 
-_BASE = os.path.dirname(os.path.abspath(__file__))
-CLAUDE_LOGO = os.path.join(_BASE, "assets", "claude_logo.png")
-OPENAI_LOGO = os.path.join(_BASE, "assets", "openai_logo.png")
+def _get_resource_path(relative_path: str) -> str:
+    if getattr(sys, "frozen", False):
+        resources_dir = os.path.join(os.path.dirname(sys.executable), "..", "Resources")
+        return os.path.normpath(os.path.join(resources_dir, relative_path))
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative_path)
+
+CLAUDE_LOGO = _get_resource_path("assets/claude_logo.png")
+OPENAI_LOGO = _get_resource_path("assets/openai_logo.png")
 
 
 def _mi(title: str, icon: str = None) -> rumps.MenuItem:
