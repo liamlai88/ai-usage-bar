@@ -15,6 +15,18 @@ if getattr(sys, "frozen", False):
         os.environ["SSL_CERT_FILE"] = _matches[0]
         os.environ["REQUESTS_CA_BUNDLE"] = _matches[0]
 
+# Apply HTTP proxy from config BEFORE importing data_sources / urllib code.
+# Login Items / launchd don't inherit shell HTTP_PROXY, so requests to
+# api.anthropic.com & chatgpt.com would otherwise fail in those launch contexts.
+from config import HTTP_PROXY as _CFG_HTTP_PROXY
+if _CFG_HTTP_PROXY:
+    os.environ.setdefault("HTTP_PROXY",  _CFG_HTTP_PROXY)
+    os.environ.setdefault("HTTPS_PROXY", _CFG_HTTP_PROXY)
+    os.environ.setdefault("http_proxy",  _CFG_HTTP_PROXY)
+    os.environ.setdefault("https_proxy", _CFG_HTTP_PROXY)
+    os.environ.setdefault("NO_PROXY",  "localhost,127.0.0.1,::1,.local")
+    os.environ.setdefault("no_proxy",  "localhost,127.0.0.1,::1,.local")
+
 import rumps
 from datetime import datetime, timezone
 from data_sources import fetch_realtime_usage, fetch_codex_usage

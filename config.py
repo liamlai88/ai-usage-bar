@@ -4,6 +4,15 @@ REFRESH_INTERVAL = 30
 # UI language: "zh" (简体中文), "en" (English), or "auto" (detect from system).
 LANG = "auto"
 
+# ---------------- HTTP Proxy ----------------
+# When the widget is started from Login Items / launchd / Finder, it does NOT
+# inherit HTTP_PROXY/HTTPS_PROXY from your shell, so requests to api.anthropic.com
+# and chatgpt.com may fail with timeouts or "Connection refused" if you need a
+# proxy. Set this to force a proxy regardless of how the widget was launched.
+# Leave as None to use whatever's already in the environment.
+# Example: "http://127.0.0.1:7897"  (Clash Verge default mixed port)
+HTTP_PROXY = None
+
 # ---------------- Threshold alerts ----------------
 # When the 5h or 7d usage crosses one of these thresholds upward,
 # a native macOS notification fires once. Drops back below the lowest
